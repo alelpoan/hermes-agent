@@ -889,6 +889,46 @@ text-* variant utilities. */ .btn-arc {
     display: none;
   }
 
+  /* xterm renders its own scrollbar as a JS-positioned div (VS Code's
+     ScrollableElement), not a native ::-webkit-scrollbar — theme.scrollbarSlider*
+     (see selection.ts resolveScrollbarTheme) supplies the color, this supplies
+     the shape. Same floating-pill formula as .scrollbar-dt's thumb (border +
+     background-clip: padding-box shrinks the visible fill inside the hitbox),
+     but the border only goes on the cross-axis — a border on all four sides
+     collapses the pill's length since this is a real div, not a scrollbar
+     pseudo-element that only insets the thickness axis. !important is required
+     because xterm sets the slider's own inline width/height per frame. */
+  /* xterm's vertical scrollbar visibility is hardcoded to "Auto" internally
+     (Viewport.ts) — it fades in on hover/scroll and fades out otherwise, and
+     that mode isn't exposed via any public option. This keeps it fully
+     opaque at all times instead, overriding the .visible/.invisible classes
+     xterm toggles for the fade (both set the same `opacity` property, so
+     !important here always wins regardless of which class is present).
+     visibility is forced too — xterm's own "invisible" class name happens to
+     collide with Tailwind's `.invisible { visibility: hidden }` utility,
+     which matches it independently of xterm's own opacity rule. */
+  .xterm-scrollable-element > .scrollbar.vertical,
+  .xterm-scrollable-element > .scrollbar.horizontal {
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
+  .xterm-scrollable-element > .scrollbar.vertical > .slider {
+    box-sizing: border-box !important;
+    border-left: 0.125rem solid transparent !important;
+    border-right: 0.125rem solid transparent !important;
+    border-radius: 9999rem !important;
+    background-clip: padding-box !important;
+  }
+
+  .xterm-scrollable-element > .scrollbar.horizontal > .slider {
+    box-sizing: border-box !important;
+    border-top: 0.125rem solid transparent !important;
+    border-bottom: 0.125rem solid transparent !important;
+    border-radius: 9999rem !important;
+    background-clip: padding-box !important;
+  }
+
   /* Variant for portaled overlays (Radix DropdownMenu, Popover, etc.) that
      render under document.body, outside the `.scrollbar-dt` scope on
      #root. Same visual treatment, applied directly to the overlay

@@ -12,7 +12,12 @@ import { useTerminalSession } from './use-terminal-session'
 
 // Absolute-stacked so inactive tabs keep layout size (a display:none host goes
 // 0×0 and renders garbled on re-show); visibility toggles which one is seen.
-const INSTANCE_CLASS = 'absolute inset-0 flex flex-col bg-(--ui-editor-surface-background) px-2 pb-2 pt-0'
+// pr-0 (not px-2): the right edge has no text padding because xterm's own
+// scrollbar track (overviewRuler.width, see use-terminal-session.ts /
+// use-agent-terminal.ts) already reserves that space — a symmetric px-2 used
+// to leave a visible dead gutter to the right of the scrollbar once it was
+// restyled thin, since the old default 14px-wide scrollbar had been masking it.
+const INSTANCE_CLASS = 'absolute inset-0 flex flex-col bg-(--ui-editor-surface-background) pl-2 pb-2 pt-0'
 
 interface TerminalInstanceProps {
   id: string

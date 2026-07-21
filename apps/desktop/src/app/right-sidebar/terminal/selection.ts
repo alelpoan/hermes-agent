@@ -97,6 +97,59 @@ export function resolveSurfaceColor(fallback: string): string {
   return resolved && resolved !== 'rgba(0, 0, 0, 0)' ? resolved : fallback
 }
 
+// Resolve --dt-midground the same way resolveSurfaceColor resolves the editor
+// surface, then derive the three xterm scrollbar-slider states at the same
+// alpha steps as .scrollbar-dt in styles.css (18% / 40% / 50%), so the
+// terminal's built-in (non-CSS) scrollbar matches the rest of the app.
+//
+// The color is round-tripped through a 1x1 canvas rather than string-munging
+// getComputedStyle's output: modern Chromium can serialize a resolved color
+// in syntaxes (e.g. `color(srgb ...)`) that don't contain a literal "rgb("
+// substring, so a naive .replace('rgb(', 'rgba(') silently produces a
+// malformed string. xterm's own color parser (Color.ts) then fails to match
+// its rgba() regex and falls back to its documented default (foreground @ 20%
+// opacity) — the muted gray/brown tint instead of blue. A canvas fillStyle
+// round-trip always normalizes to integer r,g,b regardless of the source
+// syntax. This is only safe because the probed value here is fully opaque
+// (--dt-midground itself, not yet mixed with transparent) — canvas defaults
+// to a transparent-black backdrop, so round-tripping an already-translucent
+// color through it would desaturate/darken it; the 18/40/50% alpha steps are
+// applied ourselves afterwards, as plain text, on the accurate opaque RGB.
+export function resolveScrollbarTheme(): Pick<
+  ITheme,
+  'scrollbarSliderActiveBackground' | 'scrollbarSliderBackground' | 'scrollbarSliderHoverBackground'
+> {
+  if (typeof document === 'undefined' || !document.body) {
+    return {}
+  }
+
+  const probe = document.createElement('span')
+  probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;color:var(--dt-midground)'
+  document.body.appendChild(probe)
+  const computed = getComputedStyle(probe).color
+  probe.remove()
+
+  const canvas = document.createElement('canvas')
+  canvas.width = 1
+  canvas.height = 1
+  const ctx = canvas.getContext('2d')
+
+  if (!computed || !ctx) {
+    return {}
+  }
+
+  ctx.fillStyle = computed
+  ctx.fillRect(0, 0, 1, 1)
+  const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data
+  const withAlpha = (alpha: number) => `rgba(${r}, ${g}, ${b}, ${alpha})`
+
+  return {
+    scrollbarSliderBackground: withAlpha(0.18),
+    scrollbarSliderHoverBackground: withAlpha(0.4),
+    scrollbarSliderActiveBackground: withAlpha(0.5)
+  }
+}
+
 export const isMacPlatform = () => navigator.platform.toLowerCase().includes('mac')
 
 export function isAddSelectionShortcut(event: KeyboardEvent) {

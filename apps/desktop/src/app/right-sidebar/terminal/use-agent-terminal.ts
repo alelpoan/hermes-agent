@@ -9,7 +9,7 @@ import { useTheme } from '@/themes/context'
 
 import { registerAgentTerminalWriter } from './agent-terminal-stream'
 import { makeTerminalReader, registerTerminalReader } from './buffer'
-import { resolveSurfaceColor, terminalTheme } from './selection'
+import { resolveScrollbarTheme, resolveSurfaceColor, terminalTheme } from './selection'
 
 // Read-only terminal for an agent background process: a write-only xterm (no PTY,
 // no input) fed live by the backend output stream, keyed by process id. Shares
@@ -25,7 +25,12 @@ export function useAgentTerminal({ active, id, procId }: { active: boolean; id: 
     const ansi = renderedMode === 'dark' ? (theme.darkTerminal ?? theme.terminal) : theme.terminal
     const surface = resolveSurfaceColor('#ffffff')
 
-    return { ...terminalTheme(renderedMode, ansi), background: surface, cursorAccent: surface }
+    return {
+      ...terminalTheme(renderedMode, ansi),
+      ...resolveScrollbarTheme(),
+      background: surface,
+      cursorAccent: surface
+    }
   }
 
   useEffect(() => {
@@ -48,6 +53,9 @@ export function useAgentTerminal({ active, id, procId }: { active: boolean; id: 
       letterSpacing: 0,
       lineHeight: 1.12,
       minimumContrastRatio: 4.5,
+      // Matches .scrollbar-dt's track thickness (0.5rem / 8px) — xterm's
+      // scrollbarSize option is derived from this, not from a CSS var.
+      overviewRuler: { width: 8 },
       scrollback: 1000,
       theme: surfaceTheme()
     })

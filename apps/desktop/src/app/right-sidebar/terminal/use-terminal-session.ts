@@ -16,6 +16,7 @@ import { $terminalInjection } from '../store'
 import { makeTerminalReader, registerTerminalReader } from './buffer'
 import {
   isAddSelectionShortcut,
+  resolveScrollbarTheme,
   resolveSurfaceColor,
   terminalSelectionAnchor,
   terminalSelectionLabel,
@@ -280,7 +281,7 @@ export function parseOscCwd(code: 7 | 9, payload: string): string | null {
 function withSurface(theme: ReturnType<typeof terminalTheme>) {
   const surface = resolveSurfaceColor(theme.background ?? '#ffffff')
 
-  return { ...theme, background: surface, cursorAccent: surface }
+  return { ...theme, ...resolveScrollbarTheme(), background: surface, cursorAccent: surface }
 }
 
 function transferHasDropCandidates(t: DataTransfer): boolean {
@@ -520,6 +521,9 @@ export function useTerminalSession({
       // Clamping to 4.5:1 darkens/lightens foregrounds against the background
       // at render time, matching the muted ink-like look of their terminal.
       minimumContrastRatio: 4.5,
+      // Matches .scrollbar-dt's track thickness (0.5rem / 8px) — xterm's
+      // scrollbarSize option is derived from this, not from a CSS var.
+      overviewRuler: { width: 8 },
       scrollback: 1000,
       theme: withSurface(initialThemeRef.current)
     })
