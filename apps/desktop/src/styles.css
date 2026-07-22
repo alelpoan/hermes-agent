@@ -906,25 +906,43 @@ text-* variant utilities. */ .btn-arc {
      !important here always wins regardless of which class is present).
      visibility is forced too — xterm's own "invisible" class name happens to
      collide with Tailwind's `.invisible { visibility: hidden }` utility,
-     which matches it independently of xterm's own opacity rule. */
-  .xterm-scrollable-element > .scrollbar.vertical,
-  .xterm-scrollable-element > .scrollbar.horizontal {
+     which matches it independently of xterm's own opacity rule.
+     Scoped to `.visible .xterm-scrollable-element` (not just
+     `.xterm-scrollable-element`): every terminal tab stays mounted even
+     while inactive (instance.tsx keeps shells alive under the hood), hidden
+     behind Tailwind's `invisible` (visibility:hidden) on the tab's own
+     wrapper. An unscoped `visibility: visible !important` here would
+     override that ancestor hiding too — CSS lets a descendant's own
+     visibility:visible punch through an ancestor's visibility:hidden — so
+     every background tab's scrollbar would render, stacked on top of the
+     active tab's, producing a two-tone overlap. `.visible` is the Tailwind
+     class the active tab's wrapper gets instead. */
+  .visible .xterm-scrollable-element > .scrollbar.vertical,
+  .visible .xterm-scrollable-element > .scrollbar.horizontal {
     opacity: 1 !important;
     visibility: visible !important;
   }
 
+  /* Border is 0.0625rem (1px) here, not .scrollbar-dt's 0.125rem — native
+     ::-webkit-scrollbar-thumb border rendering doesn't shrink the visible
+     fill by the full border width the way a plain div's box model does (an
+     engine-specific quirk of the scrollbar pseudo-element), so .scrollbar-dt's
+     2px border empirically renders visually wider (~6px of an 8px track)
+     than the same 2px would on this real div (~4px). 1px here measures the
+     same ~6px in practice; keeping .scrollbar-dt's own numbers unchanged
+     since that quirk doesn't apply there. */
   .xterm-scrollable-element > .scrollbar.vertical > .slider {
     box-sizing: border-box !important;
-    border-left: 0.125rem solid transparent !important;
-    border-right: 0.125rem solid transparent !important;
+    border-left: 0.0625rem solid transparent !important;
+    border-right: 0.0625rem solid transparent !important;
     border-radius: 9999rem !important;
     background-clip: padding-box !important;
   }
 
   .xterm-scrollable-element > .scrollbar.horizontal > .slider {
     box-sizing: border-box !important;
-    border-top: 0.125rem solid transparent !important;
-    border-bottom: 0.125rem solid transparent !important;
+    border-top: 0.0625rem solid transparent !important;
+    border-bottom: 0.0625rem solid transparent !important;
     border-radius: 9999rem !important;
     background-clip: padding-box !important;
   }

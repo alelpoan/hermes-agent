@@ -101,20 +101,6 @@ export function resolveSurfaceColor(fallback: string): string {
 // surface, then derive the three xterm scrollbar-slider states at the same
 // alpha steps as .scrollbar-dt in styles.css (18% / 40% / 50%), so the
 // terminal's built-in (non-CSS) scrollbar matches the rest of the app.
-//
-// The color is round-tripped through a 1x1 canvas rather than string-munging
-// getComputedStyle's output: modern Chromium can serialize a resolved color
-// in syntaxes (e.g. `color(srgb ...)`) that don't contain a literal "rgb("
-// substring, so a naive .replace('rgb(', 'rgba(') silently produces a
-// malformed string. xterm's own color parser (Color.ts) then fails to match
-// its rgba() regex and falls back to its documented default (foreground @ 20%
-// opacity) — the muted gray/brown tint instead of blue. A canvas fillStyle
-// round-trip always normalizes to integer r,g,b regardless of the source
-// syntax. This is only safe because the probed value here is fully opaque
-// (--dt-midground itself, not yet mixed with transparent) — canvas defaults
-// to a transparent-black backdrop, so round-tripping an already-translucent
-// color through it would desaturate/darken it; the 18/40/50% alpha steps are
-// applied ourselves afterwards, as plain text, on the accurate opaque RGB.
 export function resolveScrollbarTheme(): Pick<
   ITheme,
   'scrollbarSliderActiveBackground' | 'scrollbarSliderBackground' | 'scrollbarSliderHoverBackground'
@@ -126,28 +112,37 @@ export function resolveScrollbarTheme(): Pick<
   const probe = document.createElement('span')
   probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;color:var(--dt-midground)'
   document.body.appendChild(probe)
-  const computed = getComputedStyle(probe).color
+  const midground = getComputedStyle(probe).color
   probe.remove()
 
-  const canvas = document.createElement('canvas')
-  canvas.width = 1
-  canvas.height = 1
-  const ctx = canvas.getContext('2d')
-
-  if (!computed || !ctx) {
+  if (!midground) {
     return {}
   }
 
-  ctx.fillStyle = computed
-  ctx.fillRect(0, 0, 1, 1)
-  const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data
-  const withAlpha = (alpha: number) => `rgba(${r}, ${g}, ${b}, ${alpha})`
+  const withAlpha = (alpha: number) => midground.replace('rgb(', 'rgba(').replace(')', `, ${alpha})`)
 
   return {
     scrollbarSliderBackground: withAlpha(0.18),
     scrollbarSliderHoverBackground: withAlpha(0.4),
     scrollbarSliderActiveBackground: withAlpha(0.5)
   }
+}
+
+// xterm's Viewport passes `overviewRuler.width` straight through as
+// `verticalScrollbarSize` (confirmed in xterm's Viewport._getChangeOptions:
+// `verticalScrollbarSize: this._optionsService.rawOptions.overviewRuler?.width || 14`).
+// That's a raw pixel value inside the DOM, so it scales with Electron's page
+// zoom (UI Scale) like everything else on the page. Native ::-webkit-scrollbar
+// thumbs, by contrast, render at a roughly fixed physical thickness regardless
+// of page zoom (an accessibility convention in Chromium). 8 is the value
+// calibrated to visually match .scrollbar-dt's 8px track at 100% zoom — divide
+// out the zoom factor so the *visual* track size stays ~8px (and the slider's
+// resulting fill stays ~6px after the CSS border-cut) at every UI Scale preset,
+// not just 100%.
+export function resolveScrollbarTrackWidth(zoomPercent: number): number {
+  const zoomFactor = Math.max(zoomPercent, 1) / 100
+
+  return 8 / zoomFactor
 }
 
 export const isMacPlatform = () => navigator.platform.toLowerCase().includes('mac')

@@ -7,8 +7,11 @@ import { Terminal } from '@xterm/xterm'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 
+import { useStore } from '@nanostores/react'
+
 import { triggerHaptic } from '@/lib/haptics'
 import { $filePreviewTarget, $previewTarget } from '@/store/preview'
+import { $zoomPercent } from '@/store/zoom'
 import { useTheme } from '@/themes/context'
 
 import { $terminalInjection } from '../store'
@@ -17,6 +20,7 @@ import { makeTerminalReader, registerTerminalReader } from './buffer'
 import {
   isAddSelectionShortcut,
   resolveScrollbarTheme,
+  resolveScrollbarTrackWidth,
   resolveSurfaceColor,
   terminalSelectionAnchor,
   terminalSelectionLabel,
@@ -386,6 +390,7 @@ export function useTerminalSession({
   // must match the surface or the ANSI palette inverts against it. themeName
   // re-resolves the canvas surface on skin switches (same mode, new tint).
   const { renderedMode, theme, themeName } = useTheme()
+  const zoomPercent = useStore($zoomPercent)
   // Adopt the skin's ANSI palette when it ships one (imported VS Code themes do),
   // matched to the painted variant; built-in skins carry none, so the terminal
   // keeps its VS Code defaults. withSurface still owns the background, so this
@@ -521,9 +526,12 @@ export function useTerminalSession({
       // Clamping to 4.5:1 darkens/lightens foregrounds against the background
       // at render time, matching the muted ink-like look of their terminal.
       minimumContrastRatio: 4.5,
-      // Matches .scrollbar-dt's track thickness (0.5rem / 8px) — xterm's
-      // scrollbarSize option is derived from this, not from a CSS var.
-      overviewRuler: { width: 8 },
+      // Matches .scrollbar-dt's track thickness (0.5rem / 8px) at 100% UI
+      // Scale — compensated for the current zoom so it stays visually
+      // consistent across UI Scale presets (see resolveScrollbarTrackWidth).
+      // This effect only runs once on mount, so read the store directly; the
+      // effect further below keeps it live if UI Scale changes afterwards.
+      overviewRuler: { width: resolveScrollbarTrackWidth($zoomPercent.get()) },
       scrollback: 1000,
       theme: withSurface(initialThemeRef.current)
     })
@@ -939,6 +947,19 @@ export function useTerminalSession({
 
     return () => cancelAnimationFrame(raf)
   }, [activeTheme, themeName])
+
+  // overviewRuler is a live xterm option (Viewport listens for its change and
+  // recomputes verticalScrollbarSize), so this can update in place without
+  // tearing down and recreating the terminal.
+  useEffect(() => {
+    const term = termRef.current
+
+    if (!term) {
+      return
+    }
+
+    term.options.overviewRuler = { width: resolveScrollbarTrackWidth(zoomPercent) }
+  }, [zoomPercent])
 
   // Expose this terminal's buffer to the agent's `read_terminal` tool, keyed by
   // id. The tab selection (setActiveTerminalId) decides which one it reads, so

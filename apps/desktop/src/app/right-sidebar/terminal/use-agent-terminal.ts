@@ -3,19 +3,22 @@ import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
+import { useStore } from '@nanostores/react'
 import { useEffect, useRef } from 'react'
 
+import { $zoomPercent } from '@/store/zoom'
 import { useTheme } from '@/themes/context'
 
 import { registerAgentTerminalWriter } from './agent-terminal-stream'
 import { makeTerminalReader, registerTerminalReader } from './buffer'
-import { resolveScrollbarTheme, resolveSurfaceColor, terminalTheme } from './selection'
+import { resolveScrollbarTheme, resolveScrollbarTrackWidth, resolveSurfaceColor, terminalTheme } from './selection'
 
 // Read-only terminal for an agent background process: a write-only xterm (no PTY,
 // no input) fed live by the backend output stream, keyed by process id. Shares
 // the user terminal's look so the two read as one surface.
 export function useAgentTerminal({ active, id, procId }: { active: boolean; id: string; procId: string }) {
   const { renderedMode, theme, themeName } = useTheme()
+  const zoomPercent = useStore($zoomPercent)
   const hostRef = useRef<HTMLDivElement | null>(null)
   const termRef = useRef<Terminal | null>(null)
   const webglRef = useRef<WebglAddon | null>(null)
@@ -53,9 +56,12 @@ export function useAgentTerminal({ active, id, procId }: { active: boolean; id: 
       letterSpacing: 0,
       lineHeight: 1.12,
       minimumContrastRatio: 4.5,
-      // Matches .scrollbar-dt's track thickness (0.5rem / 8px) — xterm's
-      // scrollbarSize option is derived from this, not from a CSS var.
-      overviewRuler: { width: 8 },
+      // Matches .scrollbar-dt's track thickness (0.5rem / 8px) at 100% UI
+      // Scale — compensated for the current zoom so it stays visually
+      // consistent across UI Scale presets (see resolveScrollbarTrackWidth).
+      // This effect only runs once on mount, so read the store directly; the
+      // effect below keeps it live if the user changes UI Scale afterwards.
+      overviewRuler: { width: resolveScrollbarTrackWidth($zoomPercent.get()) },
       scrollback: 1000,
       theme: surfaceTheme()
     })
@@ -124,6 +130,19 @@ export function useAgentTerminal({ active, id, procId }: { active: boolean; id: 
     return () => cancelAnimationFrame(raf)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [renderedMode, themeName])
+
+  // overviewRuler is a live xterm option (Viewport listens for its change and
+  // recomputes verticalScrollbarSize), so this can update in place without
+  // tearing down and recreating the terminal.
+  useEffect(() => {
+    const term = termRef.current
+
+    if (!term) {
+      return
+    }
+
+    term.options.overviewRuler = { width: resolveScrollbarTrackWidth(zoomPercent) }
+  }, [zoomPercent])
 
   // A visibility:hidden xterm doesn't paint — refit + redraw on re-activation.
   useEffect(() => {
